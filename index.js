@@ -19,6 +19,7 @@ const AES256CbcEncrypt = (iv, key, plaintext) => {
   const cipher = Crypto.createCipheriv("aes-256-cbc", key, iv);
   const firstChunk = cipher.update(plaintext);
   const secondChunk = cipher.final();
+  
   return Buffer.concat([firstChunk, secondChunk]);
 }
 
@@ -33,6 +34,7 @@ const AES256CbcDecrypt = (iv, key, ciphertext) => {
   const cipher = Crypto.createDecipheriv("aes-256-cbc", key, iv);
   const firstChunk = cipher.update(ciphertext);
   const secondChunk = cipher.final();
+  
   return Buffer.concat([firstChunk, secondChunk]);
 }
 
@@ -46,10 +48,12 @@ const BufferEqual = (b1, b2) => {
   if (b1.length !== b2.length) {
     return false;
   }
+  
   let res = 0;
   for (let i = 0; i < b1.length; i++) {
     res |= b1[i] ^ b2[i];
   }
+  
   return res === 0;
 }
 
@@ -63,10 +67,10 @@ const Encrypt = (pubKeyTo, plaintext) => {
   const ephemPrivKey = ec.keyFromPrivate(Crypto.randomBytes(32));
   const ephemPubKey = ephemPrivKey.getPublic();
   const ephemPubKeyEncoded = Buffer.from(ephemPubKey.encode());
+  
   // Every EC public key begins with the 0x04 prefix before giving
   // the location of the two point on the curve
-  const px = ephemPrivKey.derive(ec.keyFromPublic(
-    Buffer.concat([Buffer.from([0x04]), pubKeyTo])).getPublic());
+  const px = ephemPrivKey.derive(ec.keyFromPublic(Buffer.concat([Buffer.from([0x04]), pubKeyTo])).getPublic());
   const hash = Crypto.createHash("sha512").update(px.toBuffer()).digest();
   const iv = Crypto.randomBytes(16);
   const encryptionKey = hash.slice(0, 32);
@@ -74,12 +78,14 @@ const Encrypt = (pubKeyTo, plaintext) => {
   const ciphertext = AES256CbcEncrypt(iv, encryptionKey, plaintext);
   const dataToMac = Buffer.concat([iv, ephemPubKeyEncoded, ciphertext]);
   const mac = Crypto.createHmac("sha256", macKey).update(dataToMac).digest();
+  
   const serializedCiphertext = Buffer.concat([
     iv, // 16 bytes
     ephemPubKeyEncoded, // 65 bytes
     mac, // 32 bytes
     ciphertext,
   ])
+  
   return serializedCiphertext;
 }
 
@@ -90,7 +96,7 @@ const Encrypt = (pubKeyTo, plaintext) => {
  * @returns {Buffer} plaintext
  */
 const Decrypt = (privKey, encrypted) => {
-  // read iv, ephemPubKey, mac, ciphertext from encrypted message
+  // Read iv, ephemPubKey, mac, ciphertext from encrypted message
   const iv = encrypted.slice(0, 16)
   const ephemPubKeyEncoded = encrypted.slice(16, 81);
   const mac = encrypted.slice(81, 113);
@@ -103,11 +109,14 @@ const Decrypt = (privKey, encrypted) => {
   const macKey = hash.slice(32);
   const dataToMac = Buffer.concat([iv, ephemPubKeyEncoded, ciphertext]);
   const computedMac = Crypto.createHmac("sha256", macKey).update(dataToMac).digest();
-  // verify mac
+  
+  // Verify mac
   if (!BufferEqual(computedMac, mac)) {
     throw new Error("MAC mismatch");
   }
+  
   const plaintext = AES256CbcDecrypt(iv, encryptionKey, ciphertext);
+  
   return plaintext;
 }
 
